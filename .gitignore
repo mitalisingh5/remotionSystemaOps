@@ -1,0 +1,7 @@
+Video Remix/node_modules/
+Video Remix/dist/
+Video Remix/out/
+Video Remix/uploads/
+*.mp4
+*.wav
+.env
