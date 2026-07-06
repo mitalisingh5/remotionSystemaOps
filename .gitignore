@@ -1,0 +1,11 @@
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+out/
+**/out/
+.vscode/
+.env
+*.mp4
+*.wav
+**/uploads/
