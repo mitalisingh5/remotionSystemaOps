@@ -2,7 +2,15 @@ import { z } from 'zod';
 
 // Define the edit command schema
 const EditCommand = z.object({
-  intent: z.enum(['trim', 'cut', 'caption', 'speed', 'highlight', 'concat']),
+  intent: z.enum(['trim',
+    'cut',
+    'caption',
+    'speed',
+    'highlight',
+    'concat',
+    'watermark',
+    'audio',
+    'subtitle']),
   startTime: z.number().optional(),
   endTime: z.number().optional(),
   speed: z.number().optional(),
@@ -18,36 +26,101 @@ export interface ParsedCommand {
 }
 
 export function parseCommand(command: string): ParsedCommand {
-  // Simple keyword-based parsing
-  // Could be enhanced with NLP/LLM for better understanding
-  const lowerCommand = command.toLowerCase();
+  const text = command.toLowerCase();
 
-  let intent = 'highlight';
+  let intent = "highlight";
   let startTime: number | undefined;
   let endTime: number | undefined;
   let speed: number | undefined;
 
-  // Detect intent
-  if (lowerCommand.includes('cut') || lowerCommand.includes('remove')) {
-    intent = 'cut';
-  } else if (lowerCommand.includes('trim')) {
-    intent = 'trim';
-  } else if (lowerCommand.includes('caption') || lowerCommand.includes('add text')) {
-    intent = 'caption';
-  } else if (lowerCommand.includes('speed') || lowerCommand.includes('fast') || lowerCommand.includes('slow')) {
-    intent = 'speed';
-    speed = lowerCommand.includes('fast') || lowerCommand.includes('faster') ? 1.5 : 0.75;
+  // CUT
+  if (
+    text.includes("cut") ||
+    text.includes("remove")
+  ) {
+    intent = "cut";
   }
 
-  // Extract time values (simple regex matching)
-  const timeRegex = /(\d+)\s*(?:seconds?|min|minute)/gi;
-  const timeMatches = command.match(timeRegex);
-  if (timeMatches && timeMatches.length > 0) {
-    startTime = parseInt(timeMatches[0]) || 0;
-    if (timeMatches.length > 1) {
-      endTime = parseInt(timeMatches[1]) || undefined;
+  // TRIM
+  if (text.includes("trim")) {
+    intent = "trim";
+  }
+
+  // CAPTION
+  if (
+    text.includes("caption") ||
+    text.includes("subtitle") ||
+    text.includes("add text")
+  ) {
+    intent = "caption";
+  }
+
+  // SPEED
+  if (
+    text.includes("speed") ||
+    text.includes("fast") ||
+    text.includes("slow")
+  ) {
+    intent = "speed";
+
+    const speedMatch = text.match(
+      /(\d+(\.\d+)?)x/
+    );
+
+    if (speedMatch) {
+      speed = parseFloat(speedMatch[1]);
+    } else if (
+      text.includes("fast") ||
+      text.includes("faster")
+    ) {
+      speed = 2;
+    } else if (
+      text.includes("slow") ||
+      text.includes("slower")
+    ) {
+      speed = 0.5;
     }
   }
+  // WATERMARK
+if (
+  text.includes("watermark")
+) {
+  intent = "watermark";
+}
 
-  return { intent, startTime, endTime, speed, text: command };
+  // Extract all numbers
+  const numbers = text.match(/\d+/g);
+
+  if (numbers) {
+    if (numbers.length >= 1) {
+      startTime = parseInt(numbers[0]);
+    }
+
+    if (numbers.length >= 2) {
+      endTime = parseInt(numbers[1]);
+    }
+  }
+  // AUDIO EXTRACTION
+if (
+  text.includes("extract audio") ||
+  text.includes("audio only") ||
+  text.includes("convert to mp3")
+) {
+  intent = "audio";
+}
+if (
+  text.includes("subtitle") ||
+  text.includes("captions") ||
+  text.includes("generate subtitles")
+) {
+  intent = "subtitle";
+}
+
+  return {
+    intent,
+    startTime,
+    endTime,
+    speed,
+    text: command,
+  };
 }
