@@ -4,11 +4,31 @@ A web app that lets you edit videos by talking or typing commands in a chat inte
 
 ## Features
 
-✨ **Voice Commands** — Speak your edits, and the app transcribes them in real-time using Whisper  
-🎬 **Video Preview** — See both input and output videos side-by-side  
-✂️ **Smart Editing** — Trim, cut, speed up, and add captions with natural language  
-⚡ **Local AI** — All transcription runs offline on your machine (no API keys needed)  
-🎨 **Remotion Compositions** — Render styled output videos with captions and effects
+✨ Voice Commands — Speak or type editing commands
+
+🎬 Video Preview — Upload and process videos through a simple UI
+
+✂️ Video Editing
+- Cut first N seconds
+- Trim between timestamps
+- Speed up / slow down videos
+
+📝 AI Subtitle Generation
+- Generate subtitles using OpenAI Whisper
+- Burn subtitles directly into videos
+
+🎵 Audio Extraction
+- Extract audio from videos as MP3
+
+🏷️ Watermarking
+- Add watermarks to videos
+
+⚡ Offline Processing
+- Runs locally using FFmpeg and Whisper
+- No API keys required
+
+🎨 Remotion Rendering
+- Render videos with captions and custom compositions
 
 ## Tech Stack
 
