@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { parseCommand } from "./parseCommand";
-import { processVideo } from "./processVideo";
+import { CaptionStyle, processVideo, renderStyledCaptions } from "./processVideo";
 
 type UploadRequest = Request & {
   file?: Express.Multer.File;
@@ -63,7 +63,7 @@ app.post(
 
       console.log("🧠 Parsed:", parsed);
 
-      const outputPath = await processVideo(
+      const result = await processVideo(
         req.file.path,
         parsed
       );
@@ -78,16 +78,22 @@ app.post(
         }
       });
 
-      const outputUrl = outputPath
+      const toOutputUrl = (filePath: string) => filePath
         .replace(process.cwd(), "")
         .replace(/\\/g, "/")
         .replace(/^\/?out/, "/out");
 
       return res.json({
         success: true,
-        outputUrl,
+        outputUrl: toOutputUrl(result.outputPath),
+        audioUrl: result.audioPath ? toOutputUrl(result.audioPath) : undefined,
+        transcriptJsonUrl: result.transcriptJsonPath ? toOutputUrl(result.transcriptJsonPath) : undefined,
+        transcriptVttUrl: result.transcriptVttPath ? toOutputUrl(result.transcriptVttPath) : undefined,
+        sourceVideoUrl: result.sourceVideoPath ? "/public/" + path.basename(result.sourceVideoPath) : undefined,
+        subtitleSrtUrl: result.subtitleSrtPath ? toOutputUrl(result.subtitleSrtPath) : undefined,
       });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Video processing failed";
       console.error(
         "❌ Processing Error:",
         err
@@ -95,11 +101,36 @@ app.post(
 
       return res.status(500).json({
         success: false,
-        error: "Video processing failed",
+        error: errorMessage,
       });
     }
   }
 );
+
+app.post("/api/style-captions", async (req: Request, res: Response) => {
+  try {
+    const { sourceVideoUrl, subtitleSrtUrl, fontName, fontColor, fontSize, italic, filter } = req.body;
+    if (typeof sourceVideoUrl !== "string" || typeof subtitleSrtUrl !== "string") {
+      return res.status(400).json({ success: false, error: "A source video and subtitle file are required" });
+    }
+    const sourceVideo = path.join(process.cwd(), "public", path.basename(sourceVideoUrl));
+    const subtitleFile = path.join(process.cwd(), "out", "processed", path.basename(subtitleSrtUrl));
+    if (!fs.existsSync(sourceVideo) || !fs.existsSync(subtitleFile)) {
+      return res.status(404).json({ success: false, error: "The original video or subtitle file is no longer available" });
+    }
+    const style: CaptionStyle = {
+      fontName: ["Arial", "Georgia", "Verdana"].includes(fontName) ? fontName : "Arial",
+      fontColor: /^#[0-9a-fA-F]{6}$/.test(fontColor) ? fontColor : "#FFFFFF",
+      fontSize: Math.min(72, Math.max(20, Number(fontSize) || 40)),
+      italic: Boolean(italic),
+      filter: ["none", "grayscale", "warm", "cool"].includes(filter) ? filter : "none",
+    };
+    const outputPath = await renderStyledCaptions(sourceVideo, subtitleFile, style);
+    return res.json({ success: true, outputUrl: outputPath.replace(process.cwd(), "").replace(/\\/g, "/").replace(/^\/?out/, "/out") });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Could not style captions" });
+  }
+});
 
 const PORT = process.env.VITE_SERVER_PORT
   ? Number(process.env.VITE_SERVER_PORT)

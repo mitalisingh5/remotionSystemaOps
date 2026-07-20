@@ -1,20 +1,18 @@
 import path from "path";
-import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import {bundle} from "@remotion/bundler";
+import {renderMedia, selectComposition} from "@remotion/renderer";
 
 export async function renderVideo(
   videoPath: string,
   outputPath: string,
   caption: string
 ) {
-  const entryPoint = path.join(process.cwd(), "src/remotion.ts");
-
-  const bundled = await bundle({
-    entryPoint,
+  const bundleLocation = await bundle({
+    entryPoint: path.join(process.cwd(), "src/remotion.ts"),
   });
 
   const composition = await selectComposition({
-    serveUrl: bundled,
+    serveUrl: bundleLocation,
     id: "CaptionedVideo",
     inputProps: {
       videoSrc: videoPath,
@@ -23,13 +21,16 @@ export async function renderVideo(
   });
 
   await renderMedia({
+    serveUrl: bundleLocation,
     composition,
-    serveUrl: bundled,
     codec: "h264",
     outputLocation: outputPath,
     inputProps: {
       videoSrc: videoPath,
       caption,
+    },
+    chromiumOptions: {
+      disableWebSecurity: true,
     },
   });
 

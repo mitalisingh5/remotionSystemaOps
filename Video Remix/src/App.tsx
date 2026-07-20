@@ -4,17 +4,26 @@ import ChatInterface from './components/ChatInterface';
 import VideoPlayer from './components/VideoPlayer';
 import './App.css';
 
+interface ProcessingOutput {
+  outputUrl: string;
+  audioUrl?: string;
+  transcriptJsonUrl?: string;
+  transcriptVttUrl?: string;
+  sourceVideoUrl?: string;
+  subtitleSrtUrl?: string;
+}
+
 const App: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoFileUrl, setVideoFileUrl] = useState<string | null>(null);
-  const [outputVideoUrl, setOutputVideoUrl] = useState<string | null>(null);
+  const [output, setOutput] = useState<ProcessingOutput | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleVideoUpload = (file: File) => {
     setVideoFile(file);
     const url = URL.createObjectURL(file);
     setVideoFileUrl(url);
-    setOutputVideoUrl(null);
+    setOutput(null);
   };
 
   const handleProcessVideo = async (command: string) => {
@@ -34,15 +43,33 @@ const App: React.FC = () => {
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Failed to process video");
-
       const data = await response.json();
-      if (!data.outputUrl) throw new Error("No output video returned");
-
-      setOutputVideoUrl(data.outputUrl);
+      if (!response.ok) throw new Error(data.error || "Failed to process video");
+      if (!data.outputUrl) throw new Error("No output returned");
+      setOutput(data);
     } catch (error) {
       console.error("Error processing video:", error);
-      alert("Error processing video");
+      const message = error instanceof Error ? error.message : "Error processing video";
+      alert(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStyleCaptions = async (style: Record<string, unknown>) => {
+    if (!output?.sourceVideoUrl || !output.subtitleSrtUrl) return;
+    setLoading(true);
+    try {
+      const response = await fetch('/api/style-captions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...style, sourceVideoUrl: output.sourceVideoUrl, subtitleSrtUrl: output.subtitleSrtUrl }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not style captions');
+      setOutput((current) => current ? { ...current, outputUrl: data.outputUrl } : current);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not style captions');
     } finally {
       setLoading(false);
     }
@@ -54,7 +81,7 @@ const App: React.FC = () => {
       <main className="app-main">
         <section className="left">
           <VideoUploader onUpload={handleVideoUpload} />
-          <VideoPlayer inputSrc={videoFileUrl} outputSrc={outputVideoUrl} loading={loading} />
+          <VideoPlayer inputSrc={videoFileUrl} output={output} loading={loading} onStyleCaptions={handleStyleCaptions} />
         </section>
         <section className="right">
           <ChatInterface onProcessCommand={handleProcessVideo} loading={loading} />

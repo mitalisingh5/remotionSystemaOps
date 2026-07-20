@@ -4,259 +4,95 @@ import path from "path";
 import fs from "fs";
 import { ParsedCommand } from "./parseCommand";
 import { renderVideo } from "./render";
-import { generateSubtitles } from "./whisper";
+import { generateTranscript } from "./whisper";
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
-async function trimVideo(
-  input: string,
-  output: string,
-  seconds: number
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-  ffmpeg(input)
-    .setStartTime(seconds)
-    .on("end", () => resolve())
-    .on("error", (err) => reject(err))
-    .save(output);
-});
+export interface ProcessedVideo {
+  outputPath: string;
+  audioPath?: string;
+  transcriptJsonPath?: string;
+  transcriptVttPath?: string;
+  sourceVideoPath?: string;
+  subtitleSrtPath?: string;
 }
 
-async function trimRange(
-  input: string,
-  output: string,
-  start: number,
-  end: number
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    ffmpeg(input)
-      .setStartTime(start)
-      .setDuration(end - start)
-      .on("end", () => resolve())
-      .on("error", (err) => reject(err))
-      .save(output);
-  });
+export interface CaptionStyle {
+  fontName: string;
+  fontColor: string;
+  fontSize: number;
+  italic: boolean;
+  filter: "none" | "grayscale" | "warm" | "cool";
 }
 
-async function speedVideo(
-  input: string,
-  output: string,
-  speed: number
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    ffmpeg(input)
-      .videoFilters(`setpts=${1 / speed}*PTS`)
-      .audioFilters(`atempo=${speed}`)
-      .on("end", () => resolve())
-      .on("error", (err) => reject(err))
-      .save(output);
-  });
+const runFfmpeg = (command: ffmpeg.FfmpegCommand, output: string): Promise<void> =>
+  new Promise((resolve, reject) => command.on("end", () => resolve()).on("error", reject).save(output));
+
+const trimVideo = (input: string, output: string, seconds: number) => runFfmpeg(ffmpeg(input).setStartTime(seconds), output);
+const trimRange = (input: string, output: string, start: number, end: number) => runFfmpeg(ffmpeg(input).setStartTime(start).setDuration(end - start), output);
+const speedVideo = (input: string, output: string, speed: number) => runFfmpeg(ffmpeg(input).videoFilters(`setpts=${1 / speed}*PTS`).audioFilters(`atempo=${speed}`), output);
+const watermarkVideo = (input: string, output: string) => runFfmpeg(ffmpeg(input).videoFilters("drawtext=text='Video Remix':x=20:y=20:fontsize=40:fontcolor=white"), output);
+const extractAudio = (input: string, output: string) => runFfmpeg(ffmpeg(input).noVideo().audioCodec("libmp3lame"), output);
+
+const hexToAssColor = (hex: string) => {
+  const value = hex.replace("#", "");
+  return value.length === 6 ? `&H00${value.slice(4, 6)}${value.slice(2, 4)}${value.slice(0, 2)}` : "&H00FFFFFF";
+};
+
+export async function burnSubtitles(input: string, subtitleFile: string, output: string, style?: CaptionStyle): Promise<void> {
+  const escapedSubtitle = subtitleFile.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
+  const subtitleStyle = style ? `:force_style='FontName=${style.fontName},PrimaryColour=${hexToAssColor(style.fontColor)},FontSize=${style.fontSize},Italic=${style.italic ? -1 : 0}'` : "";
+  const filters = [`subtitles='${escapedSubtitle}'${subtitleStyle}`];
+  if (style?.filter === "grayscale") filters.unshift("hue=s=0");
+  if (style?.filter === "warm") filters.unshift("colorbalance=rs=.12:gs=.03:bs=-.08");
+  if (style?.filter === "cool") filters.unshift("colorbalance=rs=-.08:gs=.02:bs=.12");
+  await runFfmpeg(ffmpeg(input).videoFilters(filters), output);
 }
-async function watermarkVideo(
-  input: string,
-  output: string
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    ffmpeg(input)
-      .videoFilters(
-        "drawtext=text='Video Remix':x=20:y=20:fontsize=40:fontcolor=white"
-      )
-      .on("end", () => resolve())
-      .on("error", (err) => reject(err))
-      .save(output);
-  });
-}
-async function burnSubtitles(
-  input: string,
-  subtitleFile: string,
-  output: string
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    console.log("INPUT:", input);
-    console.log("SUBTITLE:", subtitleFile);
 
-    const escapedSubtitle = subtitleFile
-      .replace(/\\/g, "/")
-      .replace("C:", "C\\:");
-
-    ffmpeg(input)
-      .videoFilters(
-        `subtitles='${escapedSubtitle}'`
-      )
-      .on("start", (cmd) => {
-        console.log("FFMPEG CMD:", cmd);
-      })
-      .on("end", () => resolve())
-      .on("error", (err) => {
-        console.error("FFMPEG ERROR:", err);
-        reject(err);
-      })
-      .save(output);
-  });
-}
-export async function processVideo(
-  inputPath: string,
-  parsed: ParsedCommand
-): Promise<string> {
-  const outputDir = path.join(
-    process.cwd(),
-    "out",
-    "processed"
-  );
-async function extractAudio(
-  input: string,
-  output: string
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    ffmpeg(input)
-      .noVideo()
-      .audioCodec("libmp3lame")
-      .on("end", () => resolve())
-      .on("error", (err) => reject(err))
-      .save(output);
-  });
-}
-  const publicDir = path.join(
-    process.cwd(),
-    "public"
-  );
-
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, {
-      recursive: true,
-    });
-  }
-
-  if (!fs.existsSync(publicDir)) {
-    fs.mkdirSync(publicDir, {
-      recursive: true,
-    });
-  }
-
-  const publicVideo = path.join(
-    publicDir,
-    "input.mp4"
-  );
-
-  fs.copyFileSync(inputPath, publicVideo);
-
-  const outputPath = path.join(
-    outputDir,
-    `edited-${Date.now()}.mp4`
-  );
-
-  console.log("Parsed Command:", parsed);
-
-  // CUT FIRST N SECONDS
-  if (
-    parsed.intent === "cut" &&
-    parsed.startTime !== undefined
-  ) {
-    console.log(
-      `Cutting first ${parsed.startTime} seconds`
-    );
-
-    await trimVideo(
-      publicVideo,
-      outputPath,
-      parsed.startTime
-    );
-
-    return outputPath;
-  }
-  
-
-  // TRIM RANGE
-  if (
-    parsed.intent === "trim" &&
-    parsed.startTime !== undefined &&
-    parsed.endTime !== undefined
-  ) {
-    console.log(
-      `Trimming ${parsed.startTime} -> ${parsed.endTime}`
-    );
-
-    await trimRange(
-      publicVideo,
-      outputPath,
-      parsed.startTime,
-      parsed.endTime
-    );
-
-    return outputPath;
-  }
-  if (
-  parsed.intent === "subtitle"
-) {
-  const subtitleFile =
-    await generateSubtitles(
-      publicVideo
-    );
-
-  await burnSubtitles(
-    publicVideo,
-    subtitleFile,
-    outputPath
-  );
-
+export async function renderStyledCaptions(input: string, subtitleFile: string, style: CaptionStyle): Promise<string> {
+  const outputDir = path.join(process.cwd(), "out", "processed");
+  const outputPath = path.join(outputDir, `styled-captions-${Date.now()}.mp4`);
+  await burnSubtitles(input, subtitleFile, outputPath, style);
   return outputPath;
 }
-  // SPEED UP / SLOW DOWN
-  if (
-    parsed.intent === "speed" &&
-    parsed.speed !== undefined
-  ) {
-    console.log(
-      `Changing speed to ${parsed.speed}x`
-    );
 
-    await speedVideo(
-      publicVideo,
-      outputPath,
-      parsed.speed
-    );
+export async function processVideo(inputPath: string, parsed: ParsedCommand): Promise<ProcessedVideo> {
+  const outputDir = path.join(process.cwd(), "out", "processed");
+  const publicDir = path.join(process.cwd(), "public");
+  await Promise.all([fs.promises.mkdir(outputDir, { recursive: true }), fs.promises.mkdir(publicDir, { recursive: true })]);
 
-    return outputPath;
+  const jobId = Date.now().toString();
+  const publicVideo = path.join(publicDir, `input-${jobId}${path.extname(inputPath) || ".mp4"}`);
+  await fs.promises.copyFile(inputPath, publicVideo);
+  const outputPath = path.join(outputDir, `edited-${jobId}.mp4`);
+
+  if (parsed.intent === "cut" && parsed.startTime !== undefined) {
+    await trimVideo(publicVideo, outputPath, parsed.startTime);
+    return { outputPath };
   }
-
-  // CAPTIONS
-  if (parsed.intent === "caption") {
-    await renderVideo(
-      "http://localhost:5000/public/input.mp4",
-      outputPath,
-      parsed.text || ""
-    );
-
-    return outputPath;
+  if (parsed.intent === "trim" && parsed.startTime !== undefined && parsed.endTime !== undefined) {
+    await trimRange(publicVideo, outputPath, parsed.startTime, parsed.endTime);
+    return { outputPath };
   }
-
+  if (parsed.intent === "speed" && parsed.speed !== undefined) {
+    await speedVideo(publicVideo, outputPath, parsed.speed);
+    return { outputPath };
+  }
   if (parsed.intent === "watermark") {
-  await watermarkVideo(
-    publicVideo,
-    outputPath
-  );
-  return outputPath;
-}
+    await watermarkVideo(publicVideo, outputPath);
+    return { outputPath };
+  }
   if (parsed.intent === "audio") {
-  const audioPath = path.join(
-    outputDir,
-    `audio-${Date.now()}.mp3`
-  );
+    const audioPath = path.join(outputDir, `audio-${jobId}.mp3`);
+    await extractAudio(publicVideo, audioPath);
+    return { outputPath: audioPath, audioPath };
+  }
+  if (parsed.intent === "subtitle") {
+    const transcript = await generateTranscript(publicVideo, outputDir);
+    await burnSubtitles(publicVideo, transcript.srt, outputPath);
+    return { outputPath, transcriptJsonPath: transcript.json, transcriptVttPath: transcript.vtt, sourceVideoPath: publicVideo, subtitleSrtPath: transcript.srt };
+  }
 
-  await extractAudio(
-    publicVideo,
-    audioPath
-  );
-
-  return audioPath;
-}
-
-  // DEFAULT
-  await renderVideo(
-    "http://localhost:5000/public/input.mp4",
-    outputPath,
-    parsed.text || "Video Remix"
-  );
-
-  return outputPath;
+  await renderVideo(`http://localhost:5000/public/${path.basename(publicVideo)}`, outputPath, parsed.text || "Video Remix");
+  return { outputPath };
 }

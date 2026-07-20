@@ -47,11 +47,7 @@ export function parseCommand(command: string): ParsedCommand {
   }
 
   // CAPTION
-  if (
-    text.includes("caption") ||
-    text.includes("subtitle") ||
-    text.includes("add text")
-  ) {
+  if (text.includes("caption") || text.includes("add text")) {
     intent = "caption";
   }
 
@@ -111,7 +107,10 @@ if (
 if (
   text.includes("subtitle") ||
   text.includes("captions") ||
-  text.includes("generate subtitles")
+  text.includes("generate subtitles") ||
+  text.includes("transcript") ||
+  text.includes(".vtt") ||
+  text.includes(".json")
 ) {
   intent = "subtitle";
 }

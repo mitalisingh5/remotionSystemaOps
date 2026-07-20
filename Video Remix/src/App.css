@@ -169,6 +169,30 @@ body {
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
+.caption-style-controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.caption-style-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #444;
+  font-size: 0.9rem;
+}
+
+.caption-style-controls select,
+.caption-style-controls input[type="number"] {
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
 .chat-interface {
   background: white;
   border-radius: 12px;
