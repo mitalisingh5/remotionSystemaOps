@@ -75,13 +75,31 @@ const App: React.FC = () => {
     }
   };
 
+  const handleInsertStockVideo = async (stockVideoUrl: string, startTime: number, duration: number) => {
+    if (!output?.sourceVideoUrl) return;
+    setLoading(true);
+    try {
+      const response = await fetch('/api/stock/insert', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceVideoUrl: output.sourceVideoUrl, stockVideoUrl, startTime, duration }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not insert stock visual');
+      setOutput((current) => current ? { ...current, outputUrl: data.outputUrl } : current);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not insert stock visual');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app-root">
       <header className="app-header">🎬 Video Remix — Chat-Based AI Video Editor</header>
       <main className="app-main">
         <section className="left">
           <VideoUploader onUpload={handleVideoUpload} />
-          <VideoPlayer inputSrc={videoFileUrl} output={output} loading={loading} onStyleCaptions={handleStyleCaptions} />
+          <VideoPlayer inputSrc={videoFileUrl} output={output} loading={loading} onStyleCaptions={handleStyleCaptions} onInsertStockVideo={handleInsertStockVideo} />
         </section>
         <section className="right">
           <ChatInterface onProcessCommand={handleProcessVideo} loading={loading} />

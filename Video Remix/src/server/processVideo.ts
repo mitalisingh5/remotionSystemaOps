@@ -56,6 +56,21 @@ export async function renderStyledCaptions(input: string, subtitleFile: string, 
   return outputPath;
 }
 
+export async function insertBroll(input: string, stockVideo: string, startTime: number, duration: number): Promise<string> {
+  const outputDir = path.join(process.cwd(), "out", "processed");
+  const outputPath = path.join(outputDir, `broll-${Date.now()}.mp4`);
+  const endTime = startTime + duration;
+  const command = ffmpeg(input).input(stockVideo).complexFilter([
+    { filter: "scale", options: "1280:720:force_original_aspect_ratio=decrease", inputs: "1:v", outputs: "stockScaled" },
+    { filter: "pad", options: "1280:720:(ow-iw)/2:(oh-ih)/2", inputs: "stockScaled", outputs: "stockPadded" },
+    { filter: "trim", options: `duration=${duration}`, inputs: "stockPadded", outputs: "stockTrimmed" },
+    { filter: "setpts", options: "PTS-STARTPTS", inputs: "stockTrimmed", outputs: "stock" },
+    { filter: "overlay", options: `0:0:enable='between(t,${startTime},${endTime})'`, inputs: ["0:v", "stock"], outputs: "video" },
+  ]).outputOptions(["-map [video]", "-map 0:a?", "-c:a aac"]);
+  await runFfmpeg(command, outputPath);
+  return outputPath;
+}
+
 export async function processVideo(inputPath: string, parsed: ParsedCommand): Promise<ProcessedVideo> {
   const outputDir = path.join(process.cwd(), "out", "processed");
   const publicDir = path.join(process.cwd(), "public");

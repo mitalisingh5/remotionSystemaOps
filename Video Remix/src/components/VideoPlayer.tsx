@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StockVideoPicker } from './StockVideoPicker';
 
 interface ProcessingOutput {
   outputUrl: string;
@@ -14,9 +15,10 @@ interface Props {
   output: ProcessingOutput | null;
   loading: boolean;
   onStyleCaptions: (style: Record<string, unknown>) => Promise<void>;
+  onInsertStockVideo: (videoUrl: string, startTime: number, duration: number) => Promise<void>;
 }
 
-const VideoPlayer: React.FC<Props> = ({ inputSrc, output, loading, onStyleCaptions }) => {
+const VideoPlayer: React.FC<Props> = ({ inputSrc, output, loading, onStyleCaptions, onInsertStockVideo }) => {
   const [fontName, setFontName] = useState('Arial');
   const [fontColor, setFontColor] = useState('#FFFFFF');
   const [fontSize, setFontSize] = useState(40);
@@ -50,6 +52,7 @@ const VideoPlayer: React.FC<Props> = ({ inputSrc, output, loading, onStyleCaptio
             <label>Video filter <select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="none">None</option><option value="grayscale">Grayscale</option><option value="warm">Warm</option><option value="cool">Cool</option></select></label>
             <button className="download-btn" disabled={loading} onClick={() => void onStyleCaptions({ fontName, fontColor, fontSize, italic, filter })}>Apply style</button>
           </div>}
+          {output.sourceVideoUrl && !output.audioUrl && <StockVideoPicker disabled={loading} onInsert={onInsertStockVideo} />}
         </div> : <div className="placeholder">Processed video will appear here</div>}
       </div>
     </div>

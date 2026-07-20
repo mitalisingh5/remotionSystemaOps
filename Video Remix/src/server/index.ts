@@ -1,9 +1,11 @@
+import "dotenv/config";
 import express, { Request, Response } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { parseCommand } from "./parseCommand";
-import { CaptionStyle, processVideo, renderStyledCaptions } from "./processVideo";
+import { CaptionStyle, insertBroll, processVideo, renderStyledCaptions } from "./processVideo";
+import { searchStockVideos } from "./pexels";
 
 type UploadRequest = Request & {
   file?: Express.Multer.File;
@@ -129,6 +131,29 @@ app.post("/api/style-captions", async (req: Request, res: Response) => {
     return res.json({ success: true, outputUrl: outputPath.replace(process.cwd(), "").replace(/\\/g, "/").replace(/^\/?out/, "/out") });
   } catch (err) {
     return res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Could not style captions" });
+  }
+});
+
+app.get("/api/stock/search", async (req: Request, res: Response) => {
+  try {
+    const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (!query) return res.status(400).json({ success: false, error: "Enter a visual search term" });
+    return res.json({ success: true, videos: await searchStockVideos(query) });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Stock-video search failed" });
+  }
+});
+
+app.post("/api/stock/insert", async (req: Request, res: Response) => {
+  try {
+    const { sourceVideoUrl, stockVideoUrl, startTime, duration } = req.body;
+    if (typeof sourceVideoUrl !== "string" || typeof stockVideoUrl !== "string") return res.status(400).json({ success: false, error: "A source video and stock clip are required" });
+    const sourceVideo = path.join(process.cwd(), "public", path.basename(sourceVideoUrl));
+    if (!fs.existsSync(sourceVideo) || !stockVideoUrl.startsWith("https://")) return res.status(400).json({ success: false, error: "Invalid source or stock video" });
+    const outputPath = await insertBroll(sourceVideo, stockVideoUrl, Math.max(0, Number(startTime) || 0), Math.min(10, Math.max(1, Number(duration) || 3)));
+    return res.json({ success: true, outputUrl: outputPath.replace(process.cwd(), "").replace(/\\/g, "/").replace(/^\/?out/, "/out") });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Could not insert stock video" });
   }
 });
 
